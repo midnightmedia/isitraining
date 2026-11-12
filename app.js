@@ -70,6 +70,7 @@
     const ctx = cv.getContext("2d");
     const reduce = matchMedia("(prefers-reduced-motion: reduce)");
     let drops = [], raf = 0, w = 0, h = 0, running = false, flashTimer = 0;
+    let look = { speed: 1, len: 1, alpha: 0.32 };
 
     function resize() {
       const dpr = Math.min(devicePixelRatio || 1, 2);
@@ -81,13 +82,13 @@
       return {
         x: Math.random() * (w + 200),
         y: anyY ? Math.random() * h : -30 - Math.random() * 100,
-        l: 10 + Math.random() * 20,
-        v: 9 + Math.random() * 8,
+        l: (10 + Math.random() * 20) * look.len,
+        v: (9 + Math.random() * 8) * look.speed,
       };
     }
     function frame() {
       ctx.clearRect(0, 0, w, h);
-      ctx.strokeStyle = "rgba(214, 228, 240, 0.32)";
+      ctx.strokeStyle = `rgba(214, 228, 240, ${look.alpha})`;
       ctx.lineWidth = 1;
       ctx.beginPath();
       for (const d of drops) {
@@ -110,9 +111,10 @@
     addEventListener("resize", () => running && resize());
 
     return {
-      start(count, thunder) {
+      start({ count, thunder = false, speed = 1, len = 1, alpha = 0.32 }) {
         this.stop();
         if (reduce.matches) return;
+        look = { speed, len, alpha };
         running = true;
         resize();
         drops = Array.from({ length: count }, () => drop(true));
@@ -265,8 +267,14 @@
     document.title = `${answer} — Is It Raining?`;
 
     if (raining) {
-      const count = { drizzle: 70, rain: 150, freezing: 150, heavy: 280, storm: 280 }[kind];
-      rain.start(count, kind === "storm");
+      const looks = {
+        drizzle: { count: 45, speed: 0.4, len: 0.55, alpha: 0.2 },
+        rain: { count: 150 },
+        freezing: { count: 150 },
+        heavy: { count: 280 },
+        storm: { count: 280, thunder: true },
+      };
+      rain.start(looks[kind]);
     } else {
       rain.stop();
     }
