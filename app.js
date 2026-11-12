@@ -65,12 +65,23 @@
 
   /* ---------- Rain on the glass ---------- */
 
+  // How each kind of rain looks. Sizes are relative to normal rain (1).
+  const LOOKS = {
+    drizzle:  { count: 110, speed: 0.22, len: 0.22, width: 1,   alpha: 0.3,  slant: 0.04, sway: 22 },
+    rain:     { count: 170, speed: 1,    len: 1,    width: 1,   alpha: 0.38, slant: 0.14 },
+    freezing: { count: 150, speed: 0.7,  len: 0.55, width: 1.4, alpha: 0.55, slant: 0.08, color: "236, 248, 255" },
+    heavy:    { count: 420, speed: 1.55, len: 1.7,  width: 1.5, alpha: 0.46, slant: 0.24, splash: true },
+    storm:    { count: 480, speed: 1.75, len: 1.9,  width: 1.5, alpha: 0.5,  slant: 0.48, splash: true, lightning: true },
+  };
+
   const rain = (() => {
     const cv = $("#rain");
     const ctx = cv.getContext("2d");
+    const flash = $("#flash");
     const reduce = matchMedia("(prefers-reduced-motion: reduce)");
-    let drops = [], raf = 0, w = 0, h = 0, running = false, flashTimer = 0;
-    let look = { speed: 1, len: 1, alpha: 0.32 };
+    const LAYERS = [0.45, 0.7, 1]; // far, middle, near
+    let look = null, drops = [], splashes = [], bolt = null;
+    let raf = 0, w = 0, h = 0, last = 0, nextBolt = 0;
 
     function resize() {
       const dpr = Math.min(devicePixelRatio || 1, 2);
@@ -78,54 +89,149 @@
       cv.width = w * dpr; cv.height = h * dpr;
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     }
-    function drop(anyY) {
-      return {
-        x: Math.random() * (w + 200),
-        y: anyY ? Math.random() * h : -30 - Math.random() * 100,
-        l: (10 + Math.random() * 20) * look.len,
-        v: (9 + Math.random() * 8) * look.speed,
-      };
+
+    function spawn(d, anywhere) {
+      const z = LAYERS[d.layer];
+      const r = () => 0.75 + Math.random() * 0.5;
+      d.x = Math.random() * (w + h * look.slant + 40);
+      d.y = anywhere ? Math.random() * h : -Math.random() * 80 - 20;
+      d.l = 22 * look.len * z * r();
+      d.v = 900 * look.speed * z * r();
+      d.phase = Math.random() * Math.PI * 2;
+      return d;
     }
-    function frame() {
-      ctx.clearRect(0, 0, w, h);
-      ctx.strokeStyle = `rgba(214, 228, 240, ${look.alpha})`;
-      ctx.lineWidth = 1;
-      ctx.beginPath();
-      for (const d of drops) {
-        ctx.moveTo(d.x, d.y);
-        ctx.lineTo(d.x - d.l * 0.18, d.y + d.l);
-        d.y += d.v; d.x -= d.v * 0.18;
-        if (d.y > h) Object.assign(d, drop(false));
+
+    /* Lightning: a jagged main bolt with a few forks, flickering on and off. */
+    function makeBolt() {
+      const paths = [];
+      const fork = (x, y, angle, length, depth) => {
+        const pts = [[x, y]];
+        const steps = 12 + ((Math.random() * 8) | 0);
+        const step = length / steps;
+        for (let i = 0; i < steps; i++) {
+          angle += (Math.random() - 0.5) * 0.8;
+          angle = Math.max(-0.9, Math.min(0.9, angle));
+          x += Math.sin(angle) * step;
+          y += Math.cos(angle) * step;
+          pts.push([x, y]);
+          if (depth < 2 && Math.random() < 0.16) {
+            const turn = (Math.random() < 0.5 ? -1 : 1) * (0.5 + Math.random() * 0.5);
+            fork(x, y, angle + turn, length * 0.35, depth + 1);
+          }
+        }
+        paths.push({ pts, width: depth === 0 ? 3 : depth === 1 ? 1.6 : 1 });
+      };
+      fork(w * (0.12 + Math.random() * 0.76), -10, (Math.random() - 0.5) * 0.5, h * (0.55 + Math.random() * 0.35), 0);
+      return { paths, born: performance.now() };
+    }
+
+    // Two quick strikes, then a fade: how real lightning flickers.
+    function brightness(ms) {
+      if (ms < 70) return 1;
+      if (ms < 130) return 0.15;
+      if (ms < 230) return 0.9;
+      if (ms < 700) return 0.9 * (1 - (ms - 230) / 470);
+      return 0;
+    }
+
+    function drawBolt(now) {
+      const b = brightness(now - bolt.born);
+      flash.style.opacity = (b * 0.55).toFixed(3);
+      if (b <= 0) { bolt = null; return; }
+      ctx.save();
+      ctx.lineJoin = "round";
+      ctx.lineCap = "round";
+      ctx.shadowColor = "rgba(200, 220, 255, 0.9)";
+      ctx.shadowBlur = 24;
+      for (const p of bolt.paths) {
+        ctx.beginPath();
+        p.pts.forEach(([x, y], i) => (i ? ctx.lineTo(x, y) : ctx.moveTo(x, y)));
+        ctx.strokeStyle = `rgba(245, 248, 255, ${b})`;
+        ctx.lineWidth = p.width;
+        ctx.stroke();
       }
-      ctx.stroke();
+      ctx.restore();
+    }
+
+    function frame(now) {
+      const dt = Math.min(0.05, (now - last) / 1000 || 0.016);
+      last = now;
+      ctx.clearRect(0, 0, w, h);
+      const color = look.color || "214, 228, 240";
+
+      for (let li = 0; li < LAYERS.length; li++) {
+        const z = LAYERS[li];
+        ctx.beginPath();
+        ctx.lineWidth = look.width * (0.6 + z * 0.4);
+        ctx.lineCap = "round";
+        ctx.strokeStyle = `rgba(${color}, ${look.alpha * z})`;
+        for (const d of drops) {
+          if (d.layer !== li) continue;
+          const dy = d.v * dt;
+          d.y += dy;
+          d.x -= dy * look.slant;
+          if (look.sway) d.x += Math.sin(now / 900 + d.phase) * look.sway * z * dt;
+          ctx.moveTo(d.x + d.l * look.slant, d.y - d.l);
+          ctx.lineTo(d.x, d.y);
+          if (d.y > h || d.x < -40) {
+            if (look.splash && li === 2 && d.y > h) {
+              splashes.push({ x: d.x, y: h - Math.random() * h * 0.08, age: 0 });
+            }
+            spawn(d, false);
+          }
+        }
+        ctx.stroke();
+      }
+
+      if (splashes.length) {
+        ctx.lineWidth = 1;
+        for (let i = splashes.length - 1; i >= 0; i--) {
+          const s = splashes[i];
+          s.age += dt;
+          const t = s.age / 0.35;
+          if (t >= 1) { splashes.splice(i, 1); continue; }
+          ctx.strokeStyle = `rgba(${color}, ${0.5 * (1 - t)})`;
+          ctx.beginPath();
+          ctx.ellipse(s.x, s.y, 2 + t * 9, 0.6 + t * 2.4, 0, Math.PI, 2 * Math.PI);
+          ctx.stroke();
+        }
+      }
+
+      if (look.lightning) {
+        if (!bolt && now >= nextBolt) {
+          bolt = makeBolt();
+          nextBolt = now + 3500 + Math.random() * 6500;
+        }
+        if (bolt) drawBolt(now);
+      }
+
       raf = requestAnimationFrame(frame);
     }
-    function scheduleFlash() {
-      flashTimer = setTimeout(() => {
-        els.body.classList.remove("flash");
-        void els.body.offsetWidth;
-        els.body.classList.add("flash");
-        scheduleFlash();
-      }, 5000 + Math.random() * 9000);
-    }
-    addEventListener("resize", () => running && resize());
+
+    addEventListener("resize", () => look && resize());
 
     return {
-      start({ count, thunder = false, speed = 1, len = 1, alpha = 0.32 }) {
+      start(kind) {
         this.stop();
-        if (reduce.matches) return;
-        look = { speed, len, alpha };
-        running = true;
+        if (reduce.matches || !LOOKS[kind]) return;
+        look = LOOKS[kind];
         resize();
-        drops = Array.from({ length: count }, () => drop(true));
-        frame();
-        if (thunder) scheduleFlash();
+        // Fewer drops on small screens so a phone isn't a wall of lines.
+        const scale = Math.max(0.45, Math.min(1.4, (w * h) / (1280 * 800)));
+        drops = Array.from({ length: Math.round(look.count * scale) }, (_, i) =>
+          spawn({ layer: i % LAYERS.length }, true)
+        );
+        last = performance.now();
+        nextBolt = last + 1200;
+        raf = requestAnimationFrame(frame);
       },
       stop() {
-        running = false;
         cancelAnimationFrame(raf);
-        clearTimeout(flashTimer);
-        els.body.classList.remove("flash");
+        look = null;
+        bolt = null;
+        drops = [];
+        splashes = [];
+        flash.style.opacity = "0";
         ctx.clearRect(0, 0, w, h);
       },
     };
@@ -215,8 +321,9 @@
 
   /* ---------- Rendering ---------- */
 
-  function show(state, answer, quip, aside = "") {
+  function show(state, answer, quip, aside = "", kind = "") {
     els.body.dataset.state = state;
+    els.body.dataset.kind = kind;
     els.answer.textContent = answer;
     els.quip.textContent = quip;
     els.aside.textContent = aside;
@@ -263,21 +370,11 @@
 
     const raining = kind !== "no" && kind !== "snow";
     const answer = raining ? "Yes." : "No.";
-    show(raining ? "yes" : kind === "snow" ? "snow" : "no", answer, pick(QUIPS[kind]), forecastLine(raining, slots, now));
+    show(raining ? "yes" : kind === "snow" ? "snow" : "no", answer, pick(QUIPS[kind]), forecastLine(raining, slots, now), kind);
     document.title = `${answer} — Is It Raining?`;
 
-    if (raining) {
-      const looks = {
-        drizzle: { count: 45, speed: 0.4, len: 0.55, alpha: 0.2 },
-        rain: { count: 150 },
-        freezing: { count: 150 },
-        heavy: { count: 280 },
-        storm: { count: 280, thunder: true },
-      };
-      rain.start(looks[kind]);
-    } else {
-      rain.stop();
-    }
+    if (raining) rain.start(kind);
+    else rain.stop();
 
     fillDetails(c, wx.current_units, slots, name);
     els.form.hidden = true;

@@ -70,12 +70,31 @@ body {
 }
 body[data-state="yes"] #rain { opacity: 1; }
 
-body.flash { animation: flash 0.6s ease-out; }
-@keyframes flash {
-  0% { background-color: #dfe7ee; }
-  12% { background-color: var(--bg); }
-  22% { background-color: #b9c7d3; }
-  100% { background-color: var(--bg); }
+/* Lightning lights up the sky behind the text; app.js drives its opacity. */
+#flash {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  background: radial-gradient(ellipse at 50% 0%, #eef3ff 0%, #b8c6dc 60%, #8193ad 100%);
+  opacity: 0;
+}
+
+/* Each kind of rain gets its own sky. */
+body[data-state="yes"][data-kind="drizzle"] {
+  --bg: #3c4752;
+  --muted: #b0bdc8;
+}
+body[data-state="yes"][data-kind="freezing"] {
+  --bg: #2b3a48;
+  --muted: #b3c7d6;
+}
+body[data-state="yes"][data-kind="heavy"] {
+  --bg: #1c252e;
+  --muted: #8ea0b0;
+}
+body[data-state="yes"][data-kind="storm"] {
+  --bg: #12171d;
+  --muted: #8796a5;
 }
 
 main {
@@ -282,5 +301,5 @@ footer a { color: inherit; }
 [hidden] { display: none !important; }
 
 @media (prefers-reduced-motion: reduce) {
-  *, body.flash { animation: none !important; transition: none !important; }
+  * { animation: none !important; transition: none !important; }
 }
