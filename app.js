@@ -319,16 +319,108 @@
     return `But it might in ${fmtWait(wait)}. Just saying.`;
   }
 
+  /* ---------- Motion ---------- */
+
+  const reduceMotion = matchMedia("(prefers-reduced-motion: reduce)");
+  const moving = () => !reduceMotion.matches;
+  const EASE_OUT = "cubic-bezier(0.16, 1, 0.3, 1)";
+  const SPRING = "cubic-bezier(0.34, 1.45, 0.64, 1)";
+
+  // Fade, lift and un-blur an element into place.
+  function rise(el, delay = 0, { y = 18, blur = 8, duration = 800 } = {}) {
+    if (!moving() || !el || el.hidden) return;
+    el.animate(
+      [
+        { opacity: 0, transform: `translateY(${y}px)`, filter: `blur(${blur}px)` },
+        { opacity: 1, transform: "none", filter: "blur(0)" },
+      ],
+      { duration, delay, easing: EASE_OUT, fill: "backwards" }
+    );
+  }
+
+  // The big word drops in letter by letter with a little bounce.
+  function setAnswer(text, animate) {
+    els.answer.setAttribute("aria-label", text);
+    if (!animate || !moving()) {
+      els.answer.textContent = text;
+      return;
+    }
+    els.answer.replaceChildren(
+      ...[...text].map((ch) => {
+        const s = document.createElement("span");
+        s.className = "ch";
+        s.textContent = ch;
+        s.setAttribute("aria-hidden", "true");
+        return s;
+      })
+    );
+    // Separate letters lose their kerning: measure each pair and put it back as a margin...
+    const chars = [...els.answer.querySelectorAll(".ch")];
+    const m = document.createElement("canvas").getContext("2d");
+    const cs = getComputedStyle(els.answer);
+    m.font = `${cs.fontStyle} ${cs.fontWeight} ${cs.fontSize} ${cs.fontFamily}`;
+    const w = (s) => m.measureText(s).width;
+    chars.forEach((s, i) => {
+      const next = chars[i + 1];
+      if (next) s.style.marginRight = `${w(s.textContent + next.textContent) - w(s.textContent) - w(next.textContent)}px`;
+    });
+    // ...and go back to plain text once they land.
+    const landed = chars.map((s, i) =>
+      s.animate(
+        [
+          { opacity: 0, transform: "translateY(0.35em) scale(0.85) rotate(-6deg)", filter: "blur(14px)" },
+          { opacity: 1, transform: "none", filter: "blur(0)" },
+        ],
+        { duration: 900, delay: i * 70, easing: SPRING, fill: "backwards" }
+      ).finished
+    );
+    Promise.all(landed)
+      .then(() => {
+        if (els.answer.getAttribute("aria-label") === text) els.answer.textContent = text;
+      })
+      .catch(() => {});
+  }
+
+  function countUp(el, to, format, delay = 0) {
+    if (!moving()) return (el.textContent = format(to));
+    el.textContent = format(0);
+    const start = performance.now() + delay;
+    const tick = (now) => {
+      const t = Math.min(1, Math.max(0, (now - start) / 900));
+      const eased = 1 - Math.pow(1 - t, 4);
+      el.textContent = format(to * eased);
+      if (t < 1) requestAnimationFrame(tick);
+    };
+    requestAnimationFrame(tick);
+  }
+
   /* ---------- Rendering ---------- */
 
+  let shown = "";
+
   function show(state, answer, quip, aside = "", kind = "") {
+    const key = `${state}|${answer}|${quip}`;
+    const fresh = key !== shown;
+    shown = key;
+
     els.body.dataset.state = state;
     els.body.dataset.kind = kind;
-    els.answer.textContent = answer;
+    setAnswer(answer, fresh);
     els.quip.textContent = quip;
     els.aside.textContent = aside;
     const theme = getComputedStyle(els.body).getPropertyValue("--bg").trim();
     document.querySelector('meta[name="theme-color"]').content = theme;
+
+    // Callers set which buttons show right after this, so animate once they have.
+    if (fresh) {
+      queueMicrotask(() => {
+        const step = answer.length * 70;
+        rise(els.quip, 200 + step);
+        rise(els.aside, 320 + step);
+        rise(els.form, 420 + step);
+        [els.more, els.retry].forEach((b) => rise(b, 460 + step, { y: 12, blur: 4 }));
+      });
+    }
   }
 
   function setLoading(msg = "Looking out the window.") {
@@ -337,7 +429,7 @@
     els.more.hidden = true;
     els.retry.hidden = true;
     els.form.hidden = true;
-    collapse();
+    collapse(false);
   }
 
   function askForPlace(msg) {
@@ -347,7 +439,7 @@
     els.more.hidden = true;
     els.retry.hidden = true;
     els.form.hidden = false;
-    els.input.focus();
+    els.input.focus({ preventScroll: true });
   }
 
   function showError() {
@@ -382,13 +474,18 @@
     els.more.hidden = false;
   }
 
+  let detail = null;
+
   function fillDetails(c, units, slots, name) {
-    const t = (v) => `${Math.round(v)}°`;
+    detail = {
+      temp: c.temperature_2m,
+      feels: c.apparent_temperature,
+      wind: c.wind_speed_10m,
+      windUnit: units.wind_speed_10m,
+      precip: c.precipitation || 0,
+    };
     $("#d-place").textContent = name || "Wherever you are";
-    $("#d-temp").textContent = t(c.temperature_2m);
-    $("#d-feels").textContent = t(c.apparent_temperature);
-    $("#d-wind").textContent = `${Math.round(c.wind_speed_10m)} ${units.wind_speed_10m}`;
-    $("#d-precip").textContent = `${(c.precipitation || 0).toFixed(1)} mm`;
+    paintNumbers(false);
 
     const bars = $("#d-bars");
     bars.replaceChildren();
@@ -407,10 +504,93 @@
     $("#d-meta").textContent = `Checked at ${at}. I'll check again if you come back later.`;
   }
 
-  function collapse() {
-    els.details.hidden = true;
+  function paintNumbers(animate) {
+    if (!detail) return;
+    const deg = (v) => `${Math.round(v)}°`;
+    const set = animate ? countUp : (el, v, f) => (el.textContent = f(v));
+    set($("#d-temp"), detail.temp, deg, 150);
+    set($("#d-feels"), detail.feels, deg, 210);
+    set($("#d-wind"), detail.wind, (v) => `${Math.round(v)} ${detail.windUnit}`, 270);
+    set($("#d-precip"), detail.precip, (v) => `${v.toFixed(1)} mm`, 330);
+  }
+
+  /* The details panel slides open, then its contents arrive one after another. */
+  let panelAnim = null;
+
+  function expand() {
+    const d = els.details;
+    els.more.setAttribute("aria-expanded", "true");
+    swapLabel("Okay, that's plenty");
+    d.hidden = false;
+    if (!moving()) return;
+
+    panelAnim?.cancel();
+    const h = d.scrollHeight;
+    panelAnim = d.animate([{ height: "0px", opacity: 0 }, { height: `${h}px`, opacity: 1 }], {
+      duration: 650,
+      easing: EASE_OUT,
+    });
+
+    const parts = [
+      $(".details-inner .place"),
+      ...d.querySelectorAll("dl > div"),
+      $(".chart .label"),
+      $(".chart .axis"),
+      $("#d-meta"),
+      els.elsewhere,
+    ];
+    parts.forEach((el, i) => rise(el, 80 + i * 55, { y: 12, blur: 6, duration: 700 }));
+    paintNumbers(true);
+
+    d.querySelectorAll(".bars div").forEach((b, i) => {
+      b.animate([{ transform: "scaleY(0)" }, { transform: "scaleY(1)" }], {
+        duration: 700,
+        delay: 300 + i * 45,
+        easing: SPRING,
+        fill: "backwards",
+      });
+    });
+
+    // On a phone the panel opens below the fold: bring it into view.
+    setTimeout(() => d.scrollIntoView({ behavior: "smooth", block: "nearest" }), 200);
+  }
+
+  function collapse(animate = true) {
+    const d = els.details;
     els.more.setAttribute("aria-expanded", "false");
-    els.more.textContent = "Fine, tell me more";
+    if (d.hidden) return;
+    if (!animate || !moving()) {
+      panelAnim?.cancel();
+      d.hidden = true;
+      els.more.textContent = "Fine, tell me more";
+      return;
+    }
+    swapLabel("Fine, tell me more");
+    panelAnim?.cancel();
+    panelAnim = d.animate(
+      [
+        { height: `${d.offsetHeight}px`, opacity: 1 },
+        { height: "0px", opacity: 0 },
+      ],
+      { duration: 420, easing: "cubic-bezier(0.7, 0, 0.84, 0)" }
+    );
+    panelAnim.onfinish = () => (d.hidden = true);
+  }
+
+  // Blur the button's words out and the new ones in.
+  function swapLabel(text) {
+    const b = els.more;
+    if (!moving() || b.hidden) return (b.textContent = text);
+    b.animate([{ opacity: 1, filter: "blur(0)" }, { opacity: 0, filter: "blur(4px)" }], {
+      duration: 140,
+      easing: "ease-in",
+    }).onfinish = () => {
+      b.textContent = text;
+      b.animate([{ opacity: 0, filter: "blur(4px)" }, { opacity: 1, filter: "blur(0)" }], {
+        duration: 220,
+        easing: "ease-out",
+      });
+    };
   }
 
   /* ---------- Flow ---------- */
@@ -471,10 +651,8 @@
   }
 
   els.more.addEventListener("click", () => {
-    const open = els.details.hidden;
-    els.details.hidden = !open;
-    els.more.setAttribute("aria-expanded", String(open));
-    els.more.textContent = open ? "Okay, that's plenty" : "Fine, tell me more";
+    if (els.more.getAttribute("aria-expanded") === "true") collapse();
+    else expand();
   });
 
   els.retry.addEventListener("click", () => (last ? check(last) : locate()));
@@ -483,8 +661,10 @@
     collapse();
     els.more.hidden = true;
     els.form.hidden = false;
+    rise(els.form, 150);
     els.input.value = "";
-    els.input.focus();
+    els.input.focus({ preventScroll: true });
+    window.scrollTo({ top: 0, behavior: moving() ? "smooth" : "auto" });
   });
 
   els.form.addEventListener("submit", (e) => {
@@ -496,6 +676,10 @@
   document.addEventListener("visibilitychange", () => {
     if (!document.hidden && last && Date.now() - checkedAt > 10 * 60 * 1000) check(last);
   });
+
+  // First arrival: the question settles in, then the footer.
+  rise($(".question"), 0, { y: 10, blur: 6 });
+  rise($("footer"), 900, { y: 0, blur: 0, duration: 1200 });
 
   locate();
 })();

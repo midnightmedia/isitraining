@@ -129,6 +129,9 @@ h1 {
   letter-spacing: -0.055em;
 }
 
+/* Letters are split so they can drop in one by one. */
+h1 .ch { display: inline-block; white-space: pre; }
+
 body[data-state="loading"] h1,
 body[data-state="unknown"] h1 {
   font-size: clamp(56px, 12vw, 120px);
@@ -168,9 +171,26 @@ body[data-state="loading"] h1 { color: var(--muted); animation: breathe 1.8s eas
   padding: 11px 20px;
   font: 500 14px/1 var(--sans);
   cursor: pointer;
-  transition: border-color 0.2s ease, background-color 0.2s ease;
+  transition:
+    border-color 0.25s ease,
+    background-color 0.25s ease,
+    transform 0.35s cubic-bezier(0.34, 1.45, 0.64, 1);
 }
-.pill:hover, #search button:hover { border-color: var(--fg); }
+.pill:hover, #search button:hover {
+  border-color: var(--fg);
+  background-color: color-mix(in srgb, var(--fg) 6%, transparent);
+  transform: translateY(-1px);
+}
+.pill:active, #search button:active {
+  transform: scale(0.95);
+  transition-duration: 0.1s;
+}
+#search input { transition: border-color 0.25s ease; }
+#search input:focus { border-color: var(--fg); }
+.linkish { transition: text-underline-offset 0.25s ease, opacity 0.25s ease; }
+.linkish:hover { text-underline-offset: 5px; }
+footer a { transition: opacity 0.2s ease; }
+footer a:hover { opacity: 0.7; }
 .pill:focus-visible, #search button:focus-visible, #search input:focus-visible, .linkish:focus-visible {
   outline: 2px solid var(--fg);
   outline-offset: 3px;
@@ -195,16 +215,18 @@ body[data-state="loading"] h1 { color: var(--muted); animation: breathe 1.8s eas
 }
 #search input::placeholder { color: var(--muted); }
 
+/* app.js animates #details' height; the spacing lives inside so it animates too. */
 #details {
   width: 100%;
   max-width: 400px;
+  overflow: hidden;
+  text-align: left;
+}
+.details-inner {
   margin-top: 28px;
   padding-top: 24px;
   border-top: 1px solid var(--line);
-  text-align: left;
-  animation: rise 0.35s ease-out;
 }
-@keyframes rise { from { opacity: 0; transform: translateY(6px); } }
 
 .place {
   margin: 0 0 16px;
@@ -256,6 +278,7 @@ dd {
   background: var(--fg);
   opacity: 0.8;
   border-radius: 3px 3px 0 0;
+  transform-origin: bottom;
   transition: height 0.6s ease;
 }
 .axis {
