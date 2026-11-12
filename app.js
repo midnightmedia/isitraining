@@ -287,14 +287,40 @@
     }
   }
 
-  async function geocode(name) {
-    const p = new URLSearchParams({ name, count: "1", language: "en", format: "json" });
+  // The visitor's own country, so "Stamford" means Lincolnshire to a Brit and Connecticut to an American.
+  const HOME = (() => {
+    try {
+      if (/^Europe\/(London|Belfast|Jersey|Guernsey|Isle_of_Man)$/.test(Intl.DateTimeFormat().resolvedOptions().timeZone)) return "GB";
+      return new Intl.Locale(LANG).maximize().region || "GB";
+    } catch {
+      return "GB";
+    }
+  })();
+
+  // "Stamford" → the home-country one if there is one, otherwise the biggest.
+  // "Stamford, US" or "Stamford, Connecticut" → whichever matches the part after the comma.
+  async function geocode(query) {
+    const [name, ...rest] = query.split(",").map((s) => s.trim());
+    const hint = rest.join(" ").toLowerCase();
+    const p = new URLSearchParams({ name, count: "20", language: "en", format: "json" });
     const r = await fetch("https://geocoding-api.open-meteo.com/v1/search?" + p);
     if (!r.ok) throw new Error("Geocoding failed: " + r.status);
-    const j = await r.json();
-    const g = j.results && j.results[0];
-    if (!g) return null;
-    return { lat: g.latitude, lon: g.longitude, name: [g.name, g.country].filter(Boolean).join(", ") };
+    const results = (await r.json()).results || [];
+    if (!results.length) return null;
+
+    const matchesHint = (g) =>
+      [g.country_code, g.country, g.admin1, g.admin2]
+        .filter(Boolean)
+        .some((v) => v.toLowerCase() === hint || v.toLowerCase().includes(hint) || (hint === "uk" && g.country_code === "GB"));
+    const g =
+      (hint && results.find(matchesHint)) ||
+      results.find((x) => x.country_code === HOME) ||
+      results[0];
+
+    // UK: the county (Lincolnshire beats "England"). Elsewhere: the state or region.
+    const area = g.country_code === "GB" ? g.admin2 || g.admin1 : g.admin1;
+    const label = [...new Set([g.name, area, g.country].filter(Boolean))].join(", ");
+    return { lat: g.latitude, lon: g.longitude, name: label };
   }
 
   /* ---------- Deciding things ---------- */
