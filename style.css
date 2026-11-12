@@ -286,8 +286,10 @@ footer {
   padding: 16px 16px max(16px, env(safe-area-inset-bottom));
   text-align: center;
   font-size: 12px;
+  line-height: 1.6;
   color: var(--muted);
 }
+footer span { display: inline-block; }
 footer a { color: inherit; }
 
 .visually-hidden {
