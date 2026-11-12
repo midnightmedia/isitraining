@@ -313,6 +313,9 @@ footer {
   color: var(--muted);
 }
 footer span { display: inline-block; }
+.tip { margin: 0 0 6px; font-size: 13px; font-weight: 500; }
+.tip a { color: var(--fg); text-decoration: none; border-bottom: 1px solid var(--line); padding-bottom: 1px; }
+.tip a:hover { border-color: var(--fg); opacity: 1; }
 footer a { color: inherit; }
 
 .visually-hidden {

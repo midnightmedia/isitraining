@@ -17,6 +17,9 @@
     elsewhere: $("#elsewhere"),
   };
 
+  // Your tip page (Ko-fi, Buy Me a Coffee, etc). Leave empty to hide the tip line.
+  const TIP_URL = "";
+
   const LANG = navigator.language || "en-GB";
   const IMPERIAL = /^en-(US|LR|MM)$/i.test(LANG);
 
@@ -63,15 +66,50 @@
     ],
   };
 
+  // The tip line changes with the weather, and differs every visit.
+  const TIPS = {
+    yes: [
+      "Buy me an umbrella ☂",
+      "Chip in for my umbrella fund",
+      "Buy me a raincoat. I'm soaked.",
+      "Fund my wellies",
+      "Tip the weatherman (it's me)",
+    ],
+    no: [
+      "Buy me an ice cream 🍦",
+      "Buy me sunglasses, just in case",
+      "Tip the weatherman (it's me)",
+      "Fund my umbrella. For later.",
+      "Buy me a coffee. Outside, for once.",
+    ],
+    snow: [
+      "Buy me a hot chocolate",
+      "Buy me some gloves",
+      "Tip the weatherman (it's me)",
+    ],
+    other: [
+      "Tip the weatherman (it's me)",
+      "Buy me a coffee. Indoors.",
+    ],
+  };
+
+  function updateTip(state) {
+    const line = $("#tip-line");
+    if (!TIP_URL) return;
+    $("#tip").href = TIP_URL;
+    $("#tip").textContent = pick(TIPS[state] || TIPS.other);
+    line.hidden = false;
+  }
+
   /* ---------- Rain on the glass ---------- */
 
   // How each kind of rain looks. Sizes are relative to normal rain (1).
   const LOOKS = {
-    drizzle:  { count: 110, speed: 0.22, len: 0.22, width: 1,   alpha: 0.3,  slant: 0.04, sway: 22 },
+    drizzle:  { count: 190, speed: 0.34, len: 0.38, width: 1,   alpha: 0.42, slant: 0.05, sway: 18 },
     rain:     { count: 170, speed: 1,    len: 1,    width: 1,   alpha: 0.38, slant: 0.14 },
     freezing: { count: 150, speed: 0.7,  len: 0.55, width: 1.4, alpha: 0.55, slant: 0.08, color: "236, 248, 255" },
-    heavy:    { count: 420, speed: 1.55, len: 1.7,  width: 1.5, alpha: 0.46, slant: 0.24, splash: true },
-    storm:    { count: 480, speed: 1.75, len: 1.9,  width: 1.5, alpha: 0.5,  slant: 0.48, splash: true, lightning: true },
+    heavy:    { count: 420, speed: 1.55, len: 1.7,  width: 1.5, alpha: 0.46, slant: 0.24 },
+    storm:    { count: 480, speed: 1.75, len: 1.9,  width: 1.5, alpha: 0.5,  slant: 0.48, lightning: true },
   };
 
   const rain = (() => {
@@ -80,7 +118,7 @@
     const flash = $("#flash");
     const reduce = matchMedia("(prefers-reduced-motion: reduce)");
     const LAYERS = [0.45, 0.7, 1]; // far, middle, near
-    let look = null, drops = [], splashes = [], bolt = null;
+    let look = null, drops = [], bolt = null;
     let raf = 0, w = 0, h = 0, last = 0, nextBolt = 0;
 
     function resize() {
@@ -173,28 +211,9 @@
           if (look.sway) d.x += Math.sin(now / 900 + d.phase) * look.sway * z * dt;
           ctx.moveTo(d.x + d.l * look.slant, d.y - d.l);
           ctx.lineTo(d.x, d.y);
-          if (d.y > h || d.x < -40) {
-            if (look.splash && li === 2 && d.y > h) {
-              splashes.push({ x: d.x, y: h - Math.random() * h * 0.08, age: 0 });
-            }
-            spawn(d, false);
-          }
+          if (d.y > h || d.x < -40) spawn(d, false);
         }
         ctx.stroke();
-      }
-
-      if (splashes.length) {
-        ctx.lineWidth = 1;
-        for (let i = splashes.length - 1; i >= 0; i--) {
-          const s = splashes[i];
-          s.age += dt;
-          const t = s.age / 0.35;
-          if (t >= 1) { splashes.splice(i, 1); continue; }
-          ctx.strokeStyle = `rgba(${color}, ${0.5 * (1 - t)})`;
-          ctx.beginPath();
-          ctx.ellipse(s.x, s.y, 2 + t * 9, 0.6 + t * 2.4, 0, Math.PI, 2 * Math.PI);
-          ctx.stroke();
-        }
       }
 
       if (look.lightning) {
@@ -230,7 +249,6 @@
         look = null;
         bolt = null;
         drops = [];
-        splashes = [];
         flash.style.opacity = "0";
         ctx.clearRect(0, 0, w, h);
       },
@@ -406,6 +424,7 @@
     els.body.dataset.state = state;
     els.body.dataset.kind = kind;
     setAnswer(answer, fresh);
+    if (fresh && state !== "loading") updateTip(state);
     els.quip.textContent = quip;
     els.aside.textContent = aside;
     const theme = getComputedStyle(els.body).getPropertyValue("--bg").trim();
