@@ -18,7 +18,7 @@
   };
 
   // Your tip page (Ko-fi, Buy Me a Coffee, etc). Leave empty to hide the tip line.
-  const TIP_URL = "";
+  const TIP_URL = "https://ko-fi.com/midnightmedia";
 
   const LANG = navigator.language || "en-GB";
   const IMPERIAL = /^en-(US|LR|MM)$/i.test(LANG);
