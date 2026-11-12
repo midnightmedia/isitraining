@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Is It Raining?</title>
+  <meta name="description" content="Yes or no. That's it. That's the website.">
+  <meta name="theme-color" content="#f3eee3">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>☔</text></svg>">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body data-state="loading">
+  <canvas id="rain" aria-hidden="true"></canvas>
+
+  <main>
+    <p class="question">Is it raining?</p>
+    <h1 id="answer" aria-live="polite">Checking…</h1>
+    <p id="quip">Looking out the window.</p>
+    <p id="aside"></p>
+
+    <form id="search" hidden>
+      <label for="place" class="visually-hidden">Place</label>
+      <input id="place" name="place" type="text" placeholder="e.g. Manchester" autocomplete="address-level2" required>
+      <button type="submit">Look</button>
+    </form>
+
+    <div class="actions">
+      <button id="more-btn" class="pill" aria-expanded="false" aria-controls="details" hidden>Fine, tell me more</button>
+      <button id="retry-btn" class="pill" hidden>Try again</button>
+    </div>
+
+    <section id="details" hidden>
+      <p class="place" id="d-place"></p>
+      <dl>
+        <div><dt>Temperature</dt><dd id="d-temp"></dd></div>
+        <div><dt>Feels like</dt><dd id="d-feels"></dd></div>
+        <div><dt>Wind</dt><dd id="d-wind"></dd></div>
+        <div><dt>Recent rainfall</dt><dd id="d-precip"></dd></div>
+      </dl>
+      <div class="chart">
+        <p class="label">Next two hours <span id="d-chart-note"></span></p>
+        <div class="bars" id="d-bars"></div>
+        <div class="axis"><span>Now</span><span>+1h</span><span>+2h</span></div>
+      </div>
+      <p class="meta" id="d-meta"></p>
+      <button id="elsewhere" class="linkish" type="button">Check somewhere else</button>
+    </section>
+  </main>
+
+  <footer>
+    Weather from <a href="https://open-meteo.com/" rel="noopener">Open-Meteo</a>. Attitude, our own.
+  </footer>
+
+  <script src="app.js"></script>
+</body>
+</html>
