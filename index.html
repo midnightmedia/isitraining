@@ -8,7 +8,26 @@
   <meta name="author" content="Midnight">
   <link rel="author" href="https://midnightmedia.io">
   <meta name="theme-color" content="#f3eee3">
-  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>☔</text></svg>">
+
+  <!-- Icons and home-screen app -->
+  <link rel="icon" href="/icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="/apple-touch-icon.png">
+  <link rel="manifest" href="/manifest.webmanifest">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="Raining?">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+
+  <!-- Link previews (WhatsApp, iMessage, socials) -->
+  <meta property="og:type" content="website">
+  <meta property="og:url" content="https://isitraining.co.uk/">
+  <meta property="og:title" content="Is it raining?">
+  <meta property="og:description" content="Yes or no. That's it. That's the website.">
+  <meta property="og:image" content="https://isitraining.co.uk/og.png">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta property="og:image:alt" content="Is it raining? Yes. Or no. Depends where you are, really.">
+  <meta name="twitter:card" content="summary_large_image">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -32,12 +51,14 @@
 
     <div class="actions">
       <button id="more-btn" class="pill" aria-expanded="false" aria-controls="details" hidden>Fine, tell me more</button>
+      <button id="share-btn" class="pill" hidden>Share the news</button>
       <button id="retry-btn" class="pill" hidden>Try again</button>
     </div>
 
     <section id="details" hidden>
      <div class="details-inner">
       <p class="place" id="d-place"></p>
+      <p class="streak" id="d-streak"></p>
       <dl>
         <div><dt>Temperature</dt><dd id="d-temp"></dd></div>
         <div><dt>Feels like</dt><dd id="d-feels"></dd></div>
@@ -45,9 +66,11 @@
         <div><dt>Recent rainfall</dt><dd id="d-precip"></dd></div>
       </dl>
       <div class="chart">
-        <p class="label">Next two hours <span id="d-chart-note"></span></p>
+        <p class="label" id="d-chart-title">Rest of today</p>
+        <p class="verdict" id="d-today"></p>
         <div class="bars" id="d-bars"></div>
-        <div class="axis"><span>Now</span><span>+1h</span><span>+2h</span></div>
+        <div class="axis" id="d-axis"></div>
+        <p class="tomorrow" id="d-tomorrow"></p>
       </div>
       <p class="meta" id="d-meta"></p>
       <button id="elsewhere" class="linkish" type="button">Check somewhere else</button>

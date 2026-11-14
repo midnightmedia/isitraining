@@ -106,7 +106,7 @@ main {
   align-items: center;
   justify-content: center;
   text-align: center;
-  padding: 56px 16px 32px;
+  padding: max(56px, calc(env(safe-area-inset-top) + 24px)) 16px 32px;
 }
 
 /* Matches #quip in size and weight. */
@@ -160,7 +160,7 @@ body[data-state="loading"] h1 { color: var(--muted); animation: breathe 1.8s eas
 }
 #aside:empty { display: none; }
 
-.actions { margin-top: 40px; display: flex; gap: 12px; }
+.actions { margin-top: 40px; display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; }
 
 .pill, #search button {
   appearance: none;
@@ -265,29 +265,55 @@ dd {
   color: var(--muted);
 }
 .label span { text-transform: none; letter-spacing: 0; }
+
+.streak {
+  margin: -8px 0 18px;
+  font-size: 14px;
+  color: var(--muted);
+}
+.streak:empty { display: none; }
+
+.verdict {
+  margin: 0 0 14px;
+  font-family: var(--display);
+  font-weight: 500;
+  font-size: 17px;
+  line-height: 1.35;
+  letter-spacing: -0.01em;
+}
+
+/* One bar per hour: height is the chance of rain, solid means actually wet. */
 .bars {
-  height: 56px;
-  display: flex;
-  align-items: flex-end;
-  gap: 4px;
+  height: 64px;
+  display: grid;
+  align-items: end;
+  gap: 3px;
+  justify-content: space-between;
   border-bottom: 1px solid var(--line);
 }
 .bars div {
-  flex: 1;
   min-height: 2px;
   background: var(--fg);
-  opacity: 0.8;
   border-radius: 3px 3px 0 0;
   transform-origin: bottom;
-  transition: height 0.6s ease;
 }
 .axis {
-  display: flex;
+  display: grid;
+  gap: 3px;
   justify-content: space-between;
   margin-top: 6px;
-  font-size: 12px;
+  font-size: 11px;
   color: var(--muted);
+  white-space: nowrap;
 }
+.axis span { overflow: visible; }
+
+.tomorrow {
+  margin: 16px 0 0;
+  font-size: 15px;
+  font-weight: 500;
+}
+.tomorrow:empty { display: none; }
 
 .meta { margin: 20px 0 0; font-size: 13px; color: var(--muted); }
 

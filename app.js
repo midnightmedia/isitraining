@@ -13,6 +13,7 @@
     input: $("#place"),
     more: $("#more-btn"),
     retry: $("#retry-btn"),
+    share: $("#share-btn"),
     details: $("#details"),
     elsewhere: $("#elsewhere"),
   };
@@ -263,7 +264,16 @@
       longitude: lon.toFixed(3),
       current: "precipitation,rain,showers,snowfall,weather_code,temperature_2m,apparent_temperature,wind_speed_10m",
       minutely_15: "precipitation",
+      past_minutely_15: "1",
       forecast_minutely_15: "12",
+      // Hour by hour for the rest of today and into tomorrow.
+      hourly: "precipitation,precipitation_probability",
+      past_hours: "1",
+      forecast_hours: "36",
+      // Day totals: two weeks back for streaks, plus today and tomorrow.
+      daily: "precipitation_sum,precipitation_probability_max",
+      past_days: "14",
+      forecast_days: "2",
       timezone: "auto",
       timeformat: "unixtime",
       temperature_unit: IMPERIAL ? "fahrenheit" : "celsius",
@@ -438,6 +448,115 @@
     requestAnimationFrame(tick);
   }
 
+  /* ---------- Later today, tomorrow, streaks ---------- */
+
+  const WET_HOUR = (h) => h.mm >= 0.2 || h.prob >= 60;
+
+  function hourLabel(h) {
+    if (h === 0) return "midnight";
+    if (h === 12) return "noon";
+    return `${h % 12}${h < 12 ? "am" : "pm"}`;
+  }
+
+  // The hours from now to midnight (or the next 6 hours, if it's late).
+  function upcomingHours(wx) {
+    const off = wx.utc_offset_seconds || 0;
+    const now = wx.current.time;
+    const H = wx.hourly || { time: [], precipitation: [], precipitation_probability: [] };
+    const hours = H.time
+      .map((t, i) => ({
+        t,
+        h: new Date((t + off) * 1000).getUTCHours(),
+        mm: H.precipitation[i] || 0,
+        prob: H.precipitation_probability[i] ?? 0,
+      }))
+      .filter((x) => x.t + 3600 > now);
+    const untilMidnight = hours.findIndex((x, i) => i > 0 && x.h === 0);
+    const n = Math.max(6, untilMidnight === -1 ? hours.length : untilMidnight);
+    return hours.slice(0, Math.min(n, 18)).map((x) => ({ ...x, wet: WET_HOUR(x) }));
+  }
+
+  function laterToday(hours) {
+    if (!hours.length) return "";
+    const wet = hours.map((x) => x.wet);
+    const switches = wet.slice(1).filter((w, i) => w !== wet[i]).length;
+    const firstWet = hours.find((x) => x.wet);
+    const lateNight = hours[0].h >= 21 || hours[0].h < 5;
+
+    if (!firstWet) {
+      return lateNight
+        ? "Nothing overnight. Sleep easy."
+        : pick([
+            "Not a drop for the rest of the day. Suspicious, honestly.",
+            "Dry for the rest of today. Go wild.",
+            "Nothing coming. Leave the brolly at home.",
+          ]);
+    }
+    if (wet.every(Boolean)) {
+      return lateNight
+        ? "Raining all night. Nice for sleeping, apparently."
+        : pick(["Rain for the rest of the day. Just accept it.", "Wet until bedtime. Sorry."]);
+    }
+    if (switches >= 4) return "On and off all day. Like a bad relationship.";
+    if (wet[0]) {
+      const dry = hours.find((x) => !x.wet);
+      const comesBack = hours.slice(hours.indexOf(dry)).some((x) => x.wet);
+      return comesBack
+        ? `A break around ${hourLabel(dry.h)}, then more. Don't get comfortable.`
+        : `Should clear up around ${hourLabel(dry.h)}. Allegedly.`;
+    }
+    const start = firstWet.h;
+    if (start >= 15 && start <= 18) return `Rain from ${hourLabel(start)}. Right on time for the commute. Classic.`;
+    const lastWet = [...hours].reverse().find((x) => x.wet);
+    const after = hours[hours.indexOf(lastWet) + 1];
+    if (after && lastWet !== firstWet) return `Rain from ${hourLabel(start)} to about ${hourLabel(after.h)}. Plan accordingly.`;
+    return `Dry until ${hourLabel(start)}. After that it's your problem.`;
+  }
+
+  // daily[] has 14 past days, then today, then tomorrow.
+  function tomorrowLine(wx, rainingNow) {
+    const D = wx.daily;
+    if (!D || D.time.length < 16) return "";
+    const sum = D.precipitation_sum[15] || 0;
+    const prob = D.precipitation_probability_max[15] || 0;
+    if (sum >= 2 || prob >= 70) {
+      return rainingNow
+        ? pick(["Tomorrow: also yes, probably. Sorry.", "Tomorrow: more of this. Brilliant."])
+        : pick(["Tomorrow: yes, probably. Enjoy today while it lasts.", "Tomorrow: wet. You've been warned."]);
+    }
+    if (sum >= 0.3 || prob >= 40) return "Tomorrow: maybe. Keep a brolly handy.";
+    return pick(["Tomorrow: looks dry. Don't jinx it.", "Tomorrow: dry, apparently. We'll see."]);
+  }
+
+  function streakLine(wx, rainingNow) {
+    const D = wx.daily;
+    if (!D || D.time.length < 15) return "";
+    const wetDay = (i) => (D.precipitation_sum[i] || 0) >= 1;
+    const run = (wet) => {
+      let n = 0;
+      for (let i = 13; i >= 0 && wetDay(i) === wet; i--) n++;
+      return n;
+    };
+    const plus = (n) => (n >= 14 ? "14+" : String(n));
+    const yesterdayWet = wetDay(13);
+
+    if (rainingNow && yesterdayWet) {
+      const n = run(true) + 1;
+      if (n >= 3) return pick([`Day ${plus(n)} of rain. Stay strong.`, `That's ${plus(n)} days of rain in a row. Character building.`]);
+      return "Second day running. It's getting personal.";
+    }
+    if (rainingNow) {
+      const n = run(false);
+      return n >= 3 ? `First rain in ${plus(n)} days. It missed you.` : "";
+    }
+    if (!yesterdayWet) {
+      const n = run(false) + 1;
+      return n >= 3 ? pick([`Dry for ${plus(n)} days now. Enjoy it, it won't last.`, `${plus(n)} dry days in a row. Don't get used to it.`]) : "";
+    }
+    const n = run(true);
+    return n >= 3 ? `A dry bit, after ${plus(n)} days of rain. Savour it.` : "";
+  }
+
   /* ---------- Rendering ---------- */
 
   let shown = "";
@@ -463,7 +582,7 @@
         rise(els.quip, 200 + step);
         rise(els.aside, 320 + step);
         rise(els.form, 420 + step);
-        [els.more, els.retry].forEach((b) => rise(b, 460 + step, { y: 12, blur: 4 }));
+        [els.more, els.share, els.retry].forEach((b, i) => rise(b, 460 + step + i * 60, { y: 12, blur: 4 }));
       });
     }
   }
@@ -472,6 +591,7 @@
     rain.stop();
     show("loading", "Checking…", msg);
     els.more.hidden = true;
+    els.share.hidden = true;
     els.retry.hidden = true;
     els.form.hidden = true;
     collapse(false);
@@ -482,6 +602,7 @@
     show("unknown", "Dunno.", msg, "Tell me where you are and I'll have a look.");
     document.title = "Is It Raining?";
     els.more.hidden = true;
+    els.share.hidden = true;
     els.retry.hidden = true;
     els.form.hidden = false;
     els.input.focus({ preventScroll: true });
@@ -491,6 +612,7 @@
     rain.stop();
     show("unknown", "Hmm.", "Couldn't reach the weather people. Try a window?");
     els.more.hidden = true;
+    els.share.hidden = true;
     els.retry.hidden = false;
     els.form.hidden = true;
   }
@@ -513,37 +635,59 @@
     if (raining) rain.start(kind);
     else rain.stop();
 
-    fillDetails(c, wx.current_units, slots, name);
+    fillDetails(wx, name, raining);
+    shareInfo = { raining, snow: kind === "snow", name };
+    els.share.textContent = raining ? "Share the bad news" : kind === "snow" ? "Share the news" : "Share the good news";
     els.form.hidden = true;
     els.retry.hidden = true;
     els.more.hidden = false;
+    els.share.hidden = false;
   }
 
   let detail = null;
 
-  function fillDetails(c, units, slots, name) {
+  function fillDetails(wx, name, raining) {
+    const c = wx.current;
     detail = {
       temp: c.temperature_2m,
       feels: c.apparent_temperature,
       wind: c.wind_speed_10m,
-      windUnit: units.wind_speed_10m,
+      windUnit: wx.current_units.wind_speed_10m,
       precip: c.precipitation || 0,
     };
     $("#d-place").textContent = name || "Wherever you are";
+    $("#d-streak").textContent = streakLine(wx, raining);
     paintNumbers(false);
 
+    // Rest of today: one bar per hour, height = chance of rain, solid = actually wet.
+    const hours = upcomingHours(wx);
+    const late = hours.length && (hours[0].h >= 21 || hours[0].h < 5);
+    $("#d-chart-title").textContent = late ? "Next few hours" : "Rest of today";
+    $("#d-today").textContent = laterToday(hours);
+
     const bars = $("#d-bars");
+    const axis = $("#d-axis");
     bars.replaceChildren();
-    const max = Math.max(1, ...slots.map((s) => s.p));
-    for (const s of slots) {
+    axis.replaceChildren();
+    bars.style.gridTemplateColumns = axis.style.gridTemplateColumns = `repeat(${hours.length}, minmax(0, 32px))`;
+    // Height = how heavy (2mm an hour fills it). Shade = how likely.
+    hours.forEach((x, i) => {
       const b = document.createElement("div");
-      b.style.height = `${(s.p / max) * 100}%`;
-      const at = new Date(s.t * 1000).toLocaleTimeString(LANG, { hour: "2-digit", minute: "2-digit" });
-      b.title = `${s.p.toFixed(1)} mm by ${at}`;
+      const heavy = Math.min(100, (x.mm / 2) * 100);
+      b.style.height = `${Math.max(x.prob >= 30 ? 12 : 4, heavy)}%`;
+      b.style.opacity = (0.15 + (x.prob / 100) * 0.75).toFixed(2);
+      b.className = x.wet ? "wet" : "";
+      b.title = `${i === 0 ? "Now" : hourLabel(x.h)}: ${x.prob}% chance, ${x.mm.toFixed(1)} mm`;
       bars.append(b);
-    }
-    const dry = slots.every((s) => s.p < 0.1);
-    $("#d-chart-note").textContent = dry ? "— a flat line. Riveting." : "";
+
+      const label = document.createElement("span");
+      const step = hours.length > 12 ? 4 : 3;
+      if (i === 0) label.textContent = "Now";
+      else if (i % step === 0) label.textContent = hourLabel(x.h);
+      axis.append(label);
+    });
+
+    $("#d-tomorrow").textContent = tomorrowLine(wx, raining);
 
     const at = new Date().toLocaleTimeString(LANG, { hour: "2-digit", minute: "2-digit" });
     $("#d-meta").textContent = `Checked at ${at}. I'll check again if you come back later.`;
@@ -565,7 +709,7 @@
   function expand() {
     const d = els.details;
     els.more.setAttribute("aria-expanded", "true");
-    swapLabel("Okay, that's plenty");
+    swapLabel(els.more, "Okay, that's plenty");
     d.hidden = false;
     if (!moving()) return;
 
@@ -579,8 +723,11 @@
     const parts = [
       $(".details-inner .place"),
       ...d.querySelectorAll("dl > div"),
+      $("#d-streak"),
       $(".chart .label"),
+      $("#d-today"),
       $(".chart .axis"),
+      $("#d-tomorrow"),
       $("#d-meta"),
       els.elsewhere,
     ];
@@ -610,7 +757,7 @@
       els.more.textContent = "Fine, tell me more";
       return;
     }
-    swapLabel("Fine, tell me more");
+    swapLabel(els.more, "Fine, tell me more");
     panelAnim?.cancel();
     panelAnim = d.animate(
       [
@@ -623,8 +770,7 @@
   }
 
   // Blur the button's words out and the new ones in.
-  function swapLabel(text) {
-    const b = els.more;
+  function swapLabel(b, text) {
     if (!moving() || b.hidden) return (b.textContent = text);
     b.animate([{ opacity: 1, filter: "blur(0)" }, { opacity: 0, filter: "blur(4px)" }], {
       duration: 140,
@@ -698,6 +844,46 @@
   els.more.addEventListener("click", () => {
     if (els.more.getAttribute("aria-expanded") === "true") collapse();
     else expand();
+  });
+
+  /* Share: the phone's share sheet if there is one, otherwise copy to clipboard. */
+  let shareInfo = null;
+
+  els.share.addEventListener("click", async () => {
+    if (!shareInfo) return;
+    const town = shareInfo.name ? shareInfo.name.split(",")[0] : "";
+    const where = town ? `in ${town}` : "here";
+    const text = shareInfo.raining
+      ? pick([`It's raining ${where}. Obviously.`, `It's raining ${where}. Shocking, I know.`, `Yep, raining ${where}. Of course it is.`])
+      : shareInfo.snow
+        ? `It's snowing ${where}. Which isn't rain, technically.`
+        : pick([`It's not raining ${where}. Mark the calendar.`, `Not raining ${where}. Go outside while you can.`]);
+    const url = town ? `${location.origin}/?q=${encodeURIComponent(town)}` : location.origin + "/";
+
+    if (navigator.share) {
+      try {
+        await navigator.share({ title: "Is it raining?", text, url });
+      } catch {}
+      return;
+    }
+    const label = els.share.textContent;
+    const copied = await navigator.clipboard
+      .writeText(`${text} ${url}`)
+      .then(() => true)
+      .catch(() => {
+        // Older fallback for browsers that refuse the clipboard API.
+        const t = document.createElement("textarea");
+        t.value = `${text} ${url}`;
+        t.style.position = "fixed";
+        t.style.opacity = "0";
+        document.body.append(t);
+        t.select();
+        const ok = document.execCommand("copy");
+        t.remove();
+        return ok;
+      });
+    swapLabel(els.share, copied ? "Copied. Go spread the word." : "Couldn't copy. Classic.");
+    setTimeout(() => swapLabel(els.share, label), 2200);
   });
 
   els.retry.addEventListener("click", () => (last ? check(last) : locate()));

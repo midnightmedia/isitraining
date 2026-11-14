@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <rect width="512" height="512" fill="#26323d"/>
+  <!-- rain -->
+  <g stroke="#9fb1c1" stroke-width="10" stroke-linecap="round" opacity="0.7">
+    <line x1="132" y1="330" x2="120" y2="370"/>
+    <line x1="392" y1="330" x2="380" y2="370"/>
+    <line x1="168" y1="392" x2="156" y2="432"/>
+    <line x1="352" y1="392" x2="340" y2="432"/>
+  </g>
+  <!-- canopy -->
+  <path d="M100 262 C100 168 172 108 256 108 C340 108 412 168 412 262 Q373 236 334 262 Q295 236 256 262 Q217 236 178 262 Q139 236 100 262 Z" fill="#e8eef3"/>
+  <!-- tip -->
+  <line x1="256" y1="108" x2="256" y2="88" stroke="#e8eef3" stroke-width="14" stroke-linecap="round"/>
+  <!-- handle -->
+  <path d="M256 258 V384 Q256 420 224 420 Q196 420 194 392" fill="none" stroke="#e8eef3" stroke-width="22" stroke-linecap="round"/>
+</svg>
