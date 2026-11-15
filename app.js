@@ -888,6 +888,88 @@
 
   els.retry.addEventListener("click", () => (last ? check(last) : locate()));
 
+  /* Install: Android/Chrome gets the real prompt; iPhone gets told where to tap,
+     because Apple won't let websites do it for you. */
+  const install = {
+    line: $("#install-line"),
+    btn: $("#install-btn"),
+    hint: $("#install-hint"),
+    steps: $("#install-steps"),
+    ok: $("#install-ok"),
+  };
+  const installed = () => matchMedia("(display-mode: standalone)").matches || navigator.standalone === true;
+  const UA = navigator.userAgent;
+  const isIOS = /iPhone|iPad|iPod/.test(UA) || (/Macintosh/.test(UA) && navigator.maxTouchPoints > 1); // iPads claim to be Macs
+  const isMobile = isIOS || /Android|Mobi/i.test(UA);
+  let deferredInstall = null;
+
+  function offerInstall() {
+    if (installed()) return;
+    if (install.line.hidden) {
+      install.line.hidden = false;
+      rise(install.line, 600, { y: 8, blur: 3 });
+    }
+  }
+
+  window.addEventListener("beforeinstallprompt", (e) => {
+    e.preventDefault();
+    deferredInstall = e;
+    offerInstall();
+  });
+  window.addEventListener("appinstalled", () => {
+    deferredInstall = null;
+    install.line.hidden = true;
+    closeHint();
+  });
+  // No prompt event on iPhones (or Firefox), but you can still do it by hand.
+  if (isMobile) offerInstall();
+
+  const SHARE_GLYPH =
+    '<svg class="share-glyph" viewBox="0 0 14 17" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 1v10M3.5 4.5 7 1l3.5 3.5M4.5 7H2v9h10V7H9.5"/></svg>';
+
+  function openHint() {
+    if (isIOS) {
+      install.hint.querySelector(".install-title").textContent = "Two taps. Apple insists.";
+      install.steps.innerHTML = `Tap ${SHARE_GLYPH} <b>Share</b> at the bottom of Safari, then <b>Add to Home Screen</b>. You may have to scroll. I don't make the rules.`;
+    } else {
+      install.hint.querySelector(".install-title").textContent = "Do it the old-fashioned way.";
+      install.steps.innerHTML = "Open your browser's menu <b>⋮</b> and pick <b>Add to Home screen</b> or <b>Install app</b>. Then you'll never have to look out a window again.";
+    }
+    install.hint.hidden = false;
+    if (moving())
+      install.hint.animate(
+        [
+          { opacity: 0, transform: "translate(-50%, 30px) scale(0.96)", filter: "blur(6px)" },
+          { opacity: 1, transform: "translate(-50%, 0) scale(1)", filter: "blur(0)" },
+        ],
+        { duration: 520, easing: EASE_OUT }
+      );
+    install.ok.focus({ preventScroll: true });
+  }
+
+  function closeHint() {
+    if (install.hint.hidden) return;
+    if (!moving()) return (install.hint.hidden = true);
+    install.hint.animate(
+      [{ opacity: 1, transform: "translate(-50%, 0)" }, { opacity: 0, transform: "translate(-50%, 24px)" }],
+      { duration: 220, easing: "ease-in" }
+    ).onfinish = () => (install.hint.hidden = true);
+  }
+
+  install.btn.addEventListener("click", async () => {
+    if (deferredInstall) {
+      deferredInstall.prompt();
+      const { outcome } = await deferredInstall.userChoice.catch(() => ({}));
+      deferredInstall = null;
+      if (outcome === "accepted") install.line.hidden = true;
+      else swapLabel(install.btn, "Suit yourself.");
+      return;
+    }
+    openHint();
+  });
+  install.ok.addEventListener("click", closeHint);
+  document.addEventListener("keydown", (e) => e.key === "Escape" && closeHint());
+
   els.elsewhere.addEventListener("click", () => {
     collapse();
     els.more.hidden = true;

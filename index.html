@@ -79,10 +79,17 @@
   </main>
 
   <footer>
+    <p class="install" id="install-line" hidden><button id="install-btn" class="linkish" type="button">Put it on your home screen</button></p>
     <p class="tip" id="tip-line" hidden><a id="tip" href="#" target="_blank" rel="noopener"></a></p>
     <span>Made by <a href="https://midnightmedia.io" rel="noopener">Midnight</a>.</span>
     <span>Weather from <a href="https://open-meteo.com/" rel="noopener">Open-Meteo</a>. Attitude, our own.</span>
   </footer>
+
+  <div id="install-hint" role="dialog" aria-modal="false" aria-labelledby="install-title" hidden>
+    <p class="install-title" id="install-title">Two taps. Apple insists.</p>
+    <p id="install-steps"></p>
+    <button id="install-ok" class="pill" type="button">Fine</button>
+  </div>
 
   <script src="app.js"></script>
 </body>
