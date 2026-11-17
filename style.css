@@ -122,6 +122,9 @@ main {
 
 h1 {
   margin: 0;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
   font-family: var(--display);
   font-weight: 700;
   font-size: clamp(112px, 30vw, 320px);

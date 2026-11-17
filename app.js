@@ -105,6 +105,127 @@
     line.hidden = false;
   }
 
+  /* ---------- Easter eggs ---------- */
+
+  // Famous places get their own commentary. The answer is still the real weather.
+  const PLACE_JOKES = [
+    { town: /^manchester$/, country: "United Kingdom",
+      yes: ["Manchester. As foretold.", "In Manchester. I know, I'm as surprised as you."],
+      no: ["Not raining in Manchester. Screenshot this, nobody will believe you."] },
+    { town: /^glasgow$/, country: "United Kingdom",
+      yes: ["Glasgow. Of course it is."],
+      no: ["Dry in Glasgow. Check again in five minutes."] },
+    { town: /^(cardiff|swansea|aberystwyth)$/, country: "United Kingdom",
+      yes: ["It's Wales. This is the factory setting."],
+      no: ["Dry in Wales. Someone tell the tourist board."] },
+    { town: /^(fort william|keswick|ambleside)$/, country: "United Kingdom",
+      yes: ["One of the wettest towns in Britain. Living up to it."],
+      no: ["Dry here? Enjoy it. It's not a regular thing."] },
+    { town: /^london$/, country: "United Kingdom",
+      yes: ["Drizzling on London. The tourists are thrilled."],
+      no: ["London's dry. Act natural."] },
+    { town: /^bergen$/, country: "Norway",
+      yes: ["It's Bergen. Water is also wet."],
+      no: ["Dry in Bergen. Mark it in the history books."] },
+    { town: /^seattle$/,
+      yes: ["Seattle. They're used to it."],
+      no: ["Dry in Seattle. Don't tell anyone, it ruins the brand."] },
+    { town: /^(mawsynram|cherrapunji|sohra)$/,
+      yes: ["Wettest place on Earth. Not a shock."],
+      no: ["Dry in the wettest place on Earth. Buy a lottery ticket."] },
+    { town: /^(dubai|abu dhabi|doha|riyadh|cairo|las vegas|phoenix)$/,
+      yes: ["Raining in the desert. Something has gone very wrong."],
+      no: ["In the desert? Shocked. Truly."] },
+    // Real places with silly names. Real weather, too.
+    { town: /^atlantis$/,
+      yes: ["Raining in Atlantis. Not underwater yet, though."],
+      no: ["Atlantis. The one on dry land. Still dry, too."] },
+    { town: /^narnia$/,
+      yes: ["Narnia, the real one. No lamppost, just rain."],
+      no: ["Narnia, the real one. No lion, no witch, no rain."] },
+    { town: /^moon$/,
+      yes: ["Moon. The town, not the rock. Raining, which the rock can't do."],
+      no: ["Moon. The town, not the rock. Dry either way."] },
+  ];
+
+  function placeJoke(name, raining) {
+    if (!name) return null;
+    const bits = name.split(",").map((x) => x.trim());
+    const town = bits[0].toLowerCase();
+    const country = bits[bits.length - 1];
+    const j = PLACE_JOKES.find((p) => p.town.test(town) && (!p.country || p.country === country));
+    return j ? pick(raining ? j.yes : j.no) : null;
+  }
+
+  // Places that don't exist (or have no weather) get a straight answer about that instead.
+  // The "before" ones skip the search, since it would only find something unrelated.
+  const MADE_UP = [
+    [/^(the )?sun$/, "Bit warm for rain. Try somewhere cooler.", "before"],
+    [/^(heaven|hell|mordor|the underworld)$/, "Out of my coverage area. Try somewhere on a map.", "before"],
+    [/^(the )?moon$/, "No atmosphere, no rain. Try somewhere with weather."],
+    [/atlantis/, "Atlantis is underwater, so: yes, technically. Try somewhere that exists."],
+    [/narnia/, "Always winter there, I hear. Try somewhere real."],
+  ];
+  const madeUp = (q, before = false) =>
+    (MADE_UP.find(([re, , when]) => re.test(q.trim().toLowerCase()) && (!before || when === "before")) || [])[1];
+
+  const HERE = /^(here|outside|out ?side|my (house|place|location)|where i am|home)$/i;
+
+  // Special days. Device date, or ?date=MM-DD for testing.
+  function dayJoke(kind, raining) {
+    const md = today();
+    const snow = kind === "snow";
+    switch (md) {
+      case "12-25":
+        return snow ? "Snow on Christmas Day. Someone's winning a bet."
+          : raining ? "Rain on Christmas Day. Festive. Damp, but festive."
+          : "Dry for Christmas. No snow, but you can't have everything.";
+      case "12-31":
+        return raining ? "Raining on New Year's Eve. The fireworks will be soggy." : "Dry for New Year's Eve. Fireworks are go.";
+      case "01-01":
+        return raining ? "New year, same rain." : "New year, no rain. Promising start.";
+      case "07-15":
+        return raining
+          ? "St Swithin's Day, and it's raining. That's 40 more days of this, supposedly."
+          : "Dry on St Swithin's Day. 40 days of sun, if you believe that sort of thing.";
+      case "10-31":
+        return raining ? "Raining on Halloween. Spooky. Mostly soggy." : "Dry for Halloween. The costumes survive.";
+      case "11-05":
+        return raining ? "Bonfire Night, and it's raining. Damp fireworks it is." : "Dry for Bonfire Night. Good news for fireworks, bad news for dogs.";
+      case "04-01":
+        return "That was the April Fools'. The weather is real.";
+    }
+    return null;
+  }
+  function today() {
+    const d = new Date();
+    return params.get("date") || `${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  }
+
+  // Reloading over and over gets noticed.
+  const VISITS_KEY = "isitraining:visits";
+  function reloadJoke(kind, raining) {
+    let v = [];
+    try {
+      v = JSON.parse(localStorage.getItem(VISITS_KEY)) || [];
+    } catch {}
+    const now = Date.now();
+    v = v.filter((t) => now - t < 90 * 1000);
+    const prev = v[v.length - 1];
+    v.push(now);
+    try {
+      localStorage.setItem(VISITS_KEY, JSON.stringify(v));
+    } catch {}
+    if (v.length < 3) return null;
+    const secs = Math.max(1, Math.round((now - prev) / 1000));
+    const what = raining ? "Still raining." : kind === "snow" ? "Still snowing." : "Still not raining.";
+    return pick([
+      `It's been ${secs} seconds. ${what}`,
+      `Same answer as ${secs} seconds ago. ${what}`,
+      `${what} Refreshing doesn't help, I promise.`,
+    ]);
+  }
+
   /* ---------- Rain on the glass ---------- */
 
   // How each kind of rain looks. Sizes are relative to normal rain (1).
@@ -572,6 +693,7 @@
     els.body.dataset.state = state;
     els.body.dataset.kind = kind;
     setAnswer(answer, fresh);
+    if (fresh) taps = 0;
     if (fresh && state !== "loading") updateTip(state);
     els.quip.textContent = quip;
     els.aside.textContent = aside;
@@ -620,7 +742,20 @@
     els.form.hidden = true;
   }
 
+  let rendered = false; // first render of this page load?
+  let fooled = false; // April Fools' already played
+  let current = null; // what's showing, for the shake egg
+
   function render(wx, name, pretend) {
+    // April Fools': a moment of indecision first.
+    if (!fooled && today() === "04-01") {
+      fooled = true;
+      rain.stop();
+      show("unknown", "Maybe.", "Honestly, who can say.");
+      els.more.hidden = els.share.hidden = els.retry.hidden = els.form.hidden = true;
+      setTimeout(() => render(wx, name, pretend), 1800);
+      return;
+    }
     const c = wx.current;
     const kind = pretend || classify(c);
     const now = c.time;
@@ -632,7 +767,19 @@
 
     const raining = kind !== "no" && kind !== "snow";
     const answer = raining ? "Yes." : "No.";
-    show(raining ? "yes" : kind === "snow" ? "snow" : "no", answer, pick(QUIPS[kind]), forecastLine(raining, slots, now), kind);
+    const first = !rendered;
+    rendered = true;
+    const reloaded = first ? reloadJoke(kind, raining) : null;
+    const here = last && last.here;
+    if (here) last.here = false;
+    const quip =
+      (here && "You could've just looked out the window. But fine.") ||
+      reloaded ||
+      dayJoke(kind, raining) ||
+      (kind !== "snow" && placeJoke(name, raining)) ||
+      pick(QUIPS[kind]);
+    current = { kind, raining, quip };
+    show(raining ? "yes" : kind === "snow" ? "snow" : "no", answer, quip, forecastLine(raining, slots, now), kind);
     document.title = `${answer} — Is It Raining?`;
 
     if (raining) rain.start(kind);
@@ -846,10 +993,12 @@
   }
 
   async function searchPlace(name, remember = false) {
+    const nope = madeUp(name, true);
+    if (nope) return askForPlace(nope);
     setLoading(`Looking up ${name}.`);
     try {
       const loc = await geocode(name);
-      if (!loc) return askForPlace(`Never heard of “${name}”. Try somewhere else.`);
+      if (!loc) return askForPlace(madeUp(name) || `Never heard of “${name}”. Try somewhere else.`);
       if (remember) {
         savePlace(loc);
         loc.remember = "new";
@@ -868,12 +1017,16 @@
     if (params.get("q")) return searchPlace(params.get("q"));
     const saved = savedPlace();
     if (saved) return check({ ...saved, remember: "saved" });
+    geolocate();
+  }
+
+  function geolocate(extra = {}) {
     if (!("geolocation" in navigator)) {
       return askForPlace("Your browser won't tell me where you are.");
     }
     setLoading("Working out where you are.");
     navigator.geolocation.getCurrentPosition(
-      (p) => check({ lat: p.coords.latitude, lon: p.coords.longitude }),
+      (p) => check({ lat: p.coords.latitude, lon: p.coords.longitude, ...extra }),
       (err) =>
         askForPlace(
           err.code === 1
@@ -1037,16 +1190,112 @@
   els.form.addEventListener("submit", (e) => {
     e.preventDefault();
     const q = els.input.value.trim();
-    if (q) searchPlace(q, true);
+    if (q && HERE.test(q)) geolocate({ here: true });
+    else if (q) searchPlace(q, true);
   });
 
   document.addEventListener("visibilitychange", () => {
     if (!document.hidden && last && Date.now() - checkedAt > 10 * 60 * 1000) check(last);
   });
 
+  /* Tap the big answer enough times and it starts talking back. */
+  let taps = 0;
+  const TAP_LINES = [
+    "Tapping it won't change the weather.",
+    "{still}. I checked.",
+    "It's a word, not a button.",
+    "I'm going to need you to stop.",
+    "Fine. Shake your phone, then. See what happens.",
+  ];
+  els.answer.addEventListener("click", () => {
+    const state = els.body.dataset.state;
+    if (!current || !["yes", "no", "snow"].includes(state)) return;
+    taps++;
+    if (moving())
+      els.answer.animate([{ transform: "scale(0.94)" }, { transform: "scale(1)" }], {
+        duration: 380,
+        easing: "cubic-bezier(0.34, 1.6, 0.64, 1)",
+      });
+    if (taps < 4) return;
+    const i = taps - 4;
+    if (i >= TAP_LINES.length) return;
+    const still = current.raining ? "Still raining" : current.kind === "snow" ? "Still snowing" : "Still not raining";
+    swapLabel(els.quip, TAP_LINES[i].replace("{still}", still));
+    if (i === TAP_LINES.length - 1) askForMotion();
+  });
+
+  /* Shake the phone and it pours, whatever the actual weather. Briefly. */
+  let motionAsked = false;
+  function askForMotion() {
+    // iPhones need permission, and it has to be asked from a tap.
+    const D = window.DeviceMotionEvent;
+    if (motionAsked || !D || typeof D.requestPermission !== "function") return;
+    motionAsked = true;
+    D.requestPermission()
+      .then((r) => r === "granted" && listenForShake())
+      .catch(() => {});
+  }
+
+  let shakeListening = false;
+  function listenForShake() {
+    if (shakeListening) return;
+    shakeListening = true;
+    let lastShake = 0, prev = null, jolts = 0, joltStart = 0;
+    window.addEventListener("devicemotion", (e) => {
+      const a = e.accelerationIncludingGravity;
+      if (!a || a.x == null) return;
+      if (prev) {
+        const delta = Math.abs(a.x - prev.x) + Math.abs(a.y - prev.y) + Math.abs(a.z - prev.z);
+        const now = Date.now();
+        if (delta > 28) {
+          if (now - joltStart > 800) (jolts = 0), (joltStart = now);
+          if (++jolts >= 3 && now - lastShake > 6000) {
+            lastShake = now;
+            jolts = 0;
+            pour();
+          }
+        }
+      }
+      prev = { x: a.x, y: a.y, z: a.z };
+    });
+  }
+  // Older browsers just let you listen. Chrome asks, but quietly says yes on any tap,
+  // so ask on the first touch. iPhones show a real prompt, so they wait for the hint above.
+  if (window.DeviceMotionEvent && typeof DeviceMotionEvent.requestPermission !== "function") listenForShake();
+  else if (!isIOS) document.addEventListener("pointerdown", askForMotion, { once: true });
+
+  let pouring = 0;
+  function pour() {
+    const state = els.body.dataset.state;
+    if (!current || !["yes", "no", "snow"].includes(state) || !moving()) return;
+    const was = current;
+    // Drops in the text colour, so they show up on any sky.
+    const probe = document.createElement("canvas").getContext("2d");
+    probe.fillStyle = getComputedStyle(els.body).getPropertyValue("--fg").trim();
+    const hex = probe.fillStyle.replace("#", "");
+    const rgb = [0, 2, 4].map((i) => parseInt(hex.slice(i, i + 2), 16)).join(", ");
+    LOOKS.shaken = { ...LOOKS.heavy, color: was.raining ? undefined : rgb, alpha: was.raining ? 0.5 : 0.35 };
+    rain.start("shaken");
+    if (navigator.vibrate) navigator.vibrate(60);
+    swapLabel(els.quip, was.raining ? "More? Bold. But sure." : "That's not how weather works, but sure.");
+    clearTimeout(pouring);
+    pouring = setTimeout(() => {
+      if (current !== was) return; // something new rendered meanwhile
+      if (was.raining) rain.start(was.kind);
+      else rain.stop();
+      swapLabel(els.quip, was.quip);
+    }, 4500);
+  }
+
   // First arrival: the question settles in, then the footer.
   rise($(".question"), 0, { y: 10, blur: 6 });
   rise($("footer"), 900, { y: 0, blur: 0, duration: 1200 });
+
+  console.log(
+    "%cIs it raining?%c\nYou're reading the code. Respect.\nIt's plain HTML, CSS and JavaScript, no frameworks were harmed.\nMade by Midnight: https://midnightmedia.io",
+    "font: 700 22px -apple-system, BlinkMacSystemFont, sans-serif; letter-spacing: -0.02em;",
+    "font: 13px/1.5 -apple-system, BlinkMacSystemFont, sans-serif;"
+  );
 
   locate();
 })();
