@@ -316,6 +316,8 @@ dd {
 .tomorrow:empty { display: none; }
 
 .meta { margin: 20px 0 0; font-size: 13px; color: var(--muted); }
+.remember { margin: 18px 0 0; font-size: 13px; color: var(--muted); }
+.remember .linkish { display: block; margin-top: 6px; font-size: 13px; }
 
 .linkish {
   margin-top: 8px;

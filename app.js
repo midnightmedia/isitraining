@@ -16,6 +16,9 @@
     share: $("#share-btn"),
     details: $("#details"),
     elsewhere: $("#elsewhere"),
+    remember: $("#d-remember"),
+    rememberText: $("#d-remember-text"),
+    forget: $("#forget"),
   };
 
   // Your tip page (Ko-fi, Buy Me a Coffee, etc). Leave empty to hide the tip line.
@@ -691,6 +694,17 @@
 
     const at = new Date().toLocaleTimeString(LANG, { hour: "2-digit", minute: "2-digit" });
     $("#d-meta").textContent = `Checked at ${at}. I'll check again if you come back later.`;
+
+    // Searched places get remembered, so say so (and offer a way out).
+    const town = name ? name.split(",")[0] : "here";
+    const why = last && last.remember;
+    els.remember.hidden = !why;
+    if (why === "new") els.rememberText.textContent = `Saved. Next time I'll just check ${town}.`;
+    else if (why === "saved") els.rememberText.textContent = pick([
+      `Checking ${town} because you told me to once.`,
+      `Still assuming you're in ${town}. Creature of habit.`,
+      `Remembered ${town}. I'm good like that.`,
+    ]);
   }
 
   function paintNumbers(animate) {
@@ -730,6 +744,7 @@
       $("#d-tomorrow"),
       $("#d-meta"),
       els.elsewhere,
+      els.remember,
     ];
     parts.forEach((el, i) => rise(el, 80 + i * 55, { y: 12, blur: 6, duration: 700 }));
     paintNumbers(true);
@@ -791,6 +806,27 @@
   const params = new URLSearchParams(location.search);
   const pretend = QUIPS[params.get("pretend")] ? params.get("pretend") : null;
 
+  // Remember a searched place so next time there's no asking.
+  const PLACE_KEY = "isitraining:place";
+  function savedPlace() {
+    try {
+      const p = JSON.parse(localStorage.getItem(PLACE_KEY));
+      return p && isFinite(p.lat) && isFinite(p.lon) ? p : null;
+    } catch {
+      return null;
+    }
+  }
+  function savePlace({ lat, lon, name }) {
+    try {
+      localStorage.setItem(PLACE_KEY, JSON.stringify({ lat, lon, name }));
+    } catch {}
+  }
+  function forgetPlace() {
+    try {
+      localStorage.removeItem(PLACE_KEY);
+    } catch {}
+  }
+
   async function check(loc) {
     setLoading();
     try {
@@ -801,6 +837,7 @@
       last = { ...loc, name };
       checkedAt = Date.now();
       render(wx, name, pretend);
+      if (last.remember === "new") last.remember = "saved"; // later re-checks shouldn't say "Saved." again
     } catch (e) {
       console.error(e);
       last = loc;
@@ -808,11 +845,15 @@
     }
   }
 
-  async function searchPlace(name) {
+  async function searchPlace(name, remember = false) {
     setLoading(`Looking up ${name}.`);
     try {
       const loc = await geocode(name);
       if (!loc) return askForPlace(`Never heard of “${name}”. Try somewhere else.`);
+      if (remember) {
+        savePlace(loc);
+        loc.remember = "new";
+      }
       check(loc);
     } catch (e) {
       console.error(e);
@@ -825,6 +866,8 @@
       return check({ lat: +params.get("lat"), lon: +params.get("lon") });
     }
     if (params.get("q")) return searchPlace(params.get("q"));
+    const saved = savedPlace();
+    if (saved) return check({ ...saved, remember: "saved" });
     if (!("geolocation" in navigator)) {
       return askForPlace("Your browser won't tell me where you are.");
     }
@@ -980,10 +1023,21 @@
     window.scrollTo({ top: 0, behavior: moving() ? "smooth" : "auto" });
   });
 
+  els.forget.addEventListener("click", () => {
+    forgetPlace();
+    collapse();
+    // Drop any ?q= from a shared link too, so we really do go by location.
+    if (location.search) history.replaceState(null, "", location.pathname);
+    params.delete("q");
+    params.delete("lat");
+    params.delete("lon");
+    locate();
+  });
+
   els.form.addEventListener("submit", (e) => {
     e.preventDefault();
     const q = els.input.value.trim();
-    if (q) searchPlace(q);
+    if (q) searchPlace(q, true);
   });
 
   document.addEventListener("visibilitychange", () => {
