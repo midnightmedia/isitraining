@@ -69,6 +69,7 @@ body {
   transition: opacity 1.2s ease;
 }
 body[data-state="yes"] #rain { opacity: 1; }
+body.pouring #rain { opacity: 1; } /* the shake easter egg, any weather */
 
 /* Lightning lights up the sky behind the text; app.js drives its opacity. */
 #flash {

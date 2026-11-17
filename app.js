@@ -1276,14 +1276,16 @@
     const rgb = [0, 2, 4].map((i) => parseInt(hex.slice(i, i + 2), 16)).join(", ");
     LOOKS.shaken = { ...LOOKS.heavy, color: was.raining ? undefined : rgb, alpha: was.raining ? 0.5 : 0.35 };
     rain.start("shaken");
+    els.body.classList.add("pouring");
     if (navigator.vibrate) navigator.vibrate(60);
     swapLabel(els.quip, was.raining ? "More? Bold. But sure." : "That's not how weather works, but sure.");
     clearTimeout(pouring);
     pouring = setTimeout(() => {
+      els.body.classList.remove("pouring");
       if (current !== was) return; // something new rendered meanwhile
-      if (was.raining) rain.start(was.kind);
-      else rain.stop();
       swapLabel(els.quip, was.quip);
+      if (was.raining) rain.start(was.kind);
+      else setTimeout(() => !els.body.classList.contains("pouring") && current === was && rain.stop(), 1200); // let it fade first
     }, 4500);
   }
 
