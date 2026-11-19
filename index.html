@@ -31,13 +31,14 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="style.css?v=5">
+  <link rel="stylesheet" href="style.css?v=7">
 </head>
 <body data-state="loading">
   <div id="flash" aria-hidden="true"></div>
   <canvas id="rain" aria-hidden="true"></canvas>
 
   <main>
+   <div class="hero">
     <p class="question">Is it raining?</p>
     <h1 id="answer" aria-live="polite">Checking…</h1>
     <p id="quip">Looking out the window.</p>
@@ -54,6 +55,7 @@
       <button id="share-btn" class="pill" hidden>Share the news</button>
       <button id="retry-btn" class="pill" hidden>Try again</button>
     </div>
+   </div>
 
     <section id="details" hidden>
      <div class="details-inner">
@@ -83,7 +85,7 @@
     <p class="install" id="install-line" hidden><button id="install-btn" class="linkish" type="button">Put it on your home screen</button></p>
     <p class="tip" id="tip-line" hidden><a id="tip" href="#" target="_blank" rel="noopener"></a></p>
     <span>Made by <a href="https://midnightmedia.io" rel="noopener">Midnight</a>.</span>
-    <span>Weather from <a href="https://open-meteo.com/" rel="noopener">Open-Meteo</a>. Attitude, our own.</span>
+    <span>Weather from <a href="https://open-meteo.com/" rel="noopener">Open-Meteo</a>.</span>
   </footer>
 
   <div id="install-hint" role="dialog" aria-modal="false" aria-labelledby="install-title" hidden>
@@ -92,6 +94,6 @@
     <button id="install-ok" class="pill" type="button">Fine</button>
   </div>
 
-  <script src="app.js?v=5"></script>
+  <script src="app.js?v=7"></script>
 </body>
 </html>

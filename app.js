@@ -415,7 +415,12 @@
       if (!r.ok) return null;
       const j = await r.json();
       const town = j.city || j.locality;
-      return [town, j.countryName].filter(Boolean).join(", ") || null;
+      // The short country name ("United Kingdom", not the full official one).
+      let country = j.countryName;
+      try {
+        if (j.countryCode) country = new Intl.DisplayNames(["en"], { type: "region" }).of(j.countryCode) || country;
+      } catch {}
+      return [town, country].filter(Boolean).join(", ") || null;
     } catch {
       return null;
     }
@@ -867,19 +872,33 @@
   /* The details panel slides open, then its contents arrive one after another. */
   let panelAnim = null;
 
+  // Same breakpoint as the side-by-side layout in style.css.
+  const wide = matchMedia("(min-width: 960px) and (min-height: 560px)");
+  const sideways = () => wide.matches;
+
   function expand() {
     const d = els.details;
     els.more.setAttribute("aria-expanded", "true");
     swapLabel(els.more, "Okay, that's plenty");
     d.hidden = false;
+    els.body.classList.add("side-open");
     if (!moving()) return;
 
     panelAnim?.cancel();
-    const h = d.scrollHeight;
-    panelAnim = d.animate([{ height: "0px", opacity: 0 }, { height: `${h}px`, opacity: 1 }], {
-      duration: 650,
-      easing: EASE_OUT,
-    });
+    if (sideways()) {
+      // Grow out to the right; the big answer slides over to make room.
+      const w = d.scrollWidth;
+      panelAnim = d.animate([{ width: "0px", opacity: 0 }, { width: `${w}px`, opacity: 1 }], {
+        duration: 750,
+        easing: EASE_OUT,
+      });
+    } else {
+      const h = d.scrollHeight;
+      panelAnim = d.animate([{ height: "0px", opacity: 0 }, { height: `${h}px`, opacity: 1 }], {
+        duration: 650,
+        easing: EASE_OUT,
+      });
+    }
 
     const parts = [
       $(".details-inner .place"),
@@ -906,12 +925,13 @@
     });
 
     // On a phone the panel opens below the fold: bring it into view.
-    setTimeout(() => d.scrollIntoView({ behavior: "smooth", block: "nearest" }), 200);
+    if (!sideways()) setTimeout(() => d.scrollIntoView({ behavior: "smooth", block: "nearest" }), 200);
   }
 
   function collapse(animate = true) {
     const d = els.details;
     els.more.setAttribute("aria-expanded", "false");
+    els.body.classList.remove("side-open");
     if (d.hidden) return;
     if (!animate || !moving()) {
       panelAnim?.cancel();
@@ -921,12 +941,12 @@
     }
     swapLabel(els.more, "Fine, tell me more");
     panelAnim?.cancel();
+    const side = sideways();
     panelAnim = d.animate(
-      [
-        { height: `${d.offsetHeight}px`, opacity: 1 },
-        { height: "0px", opacity: 0 },
-      ],
-      { duration: 420, easing: "cubic-bezier(0.7, 0, 0.84, 0)" }
+      side
+        ? [{ width: `${d.offsetWidth}px`, opacity: 1 }, { width: "0px", opacity: 0 }]
+        : [{ height: `${d.offsetHeight}px`, opacity: 1 }, { height: "0px", opacity: 0 }],
+      { duration: side ? 520 : 420, easing: "cubic-bezier(0.7, 0, 0.84, 0)" }
     );
     panelAnim.onfinish = () => (d.hidden = true);
   }
